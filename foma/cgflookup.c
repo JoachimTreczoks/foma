@@ -1,5 +1,5 @@
 /*   Foma: a finite-state toolkit and library.                                 */
-/*   Copyright © 2008-2015 Mans Hulden                                         */
+/*   Copyright © 2008-2021 Mans Hulden                                         */
 
 /*   This file is part of foma.                                                */
 
@@ -20,7 +20,9 @@
 #include <stdio.h>
 #include <limits.h>
 #include <getopt.h>
+#ifndef _MSC_VER
 #include <unistd.h>
+#endif
 #include <wctype.h>
 #include <locale.h>
 #include "fomalib.h"
@@ -31,7 +33,7 @@
 
 static char *usagestring = "Usage: cgflookup [-h] [-a] [-i] [-s \"separator\"] [-w \"wordseparator\"] [-v] [-x] [-b] [-I <#|#k|#m|f>] <binary foma file>\n";
 
-static char *helpstring = 
+static char *helpstring =
 "Applies words from stdin to a foma transducer/automaton read from a file and prints results to stdout.\n"
 
 "If the file contains several nets, inputs will be passed through all of them (simulating composition) or applied as alternates if the -a flag is specified (simulating priority union: the first net is tried first, if that fails to produce an output, then the second is tried, etc.).\n\n"
@@ -69,7 +71,7 @@ static FILE *INFILE;
 static struct lookup_chain *chain_head, *chain_tail, *chain_new, *chain_pos;
 static fsm_read_binary_handle fsrh;
 
-static char *(*applyer)() = &apply_up;  /* Default apply direction = up */
+static char *(*applyer)(struct apply_handle *h, char *word) = &apply_up;  /* Default apply direction = up */
 static void handle_line(char *s);
 static void app_print(char *result);
 static char *get_next_line();
@@ -170,7 +172,7 @@ int main(int argc, char *argv[]) {
 
     while ((net = fsm_read_binary_file_multiple(fsrh)) != NULL) {
 	numnets++;
-	chain_new = xxmalloc(sizeof(struct lookup_chain));	
+	chain_new = malloc(sizeof(struct lookup_chain));
 	if (direction == DIR_DOWN && net->arcs_sorted_in != 1 && sortarcs) {
 	    fsm_sort_arcs(net, 1);
 	}
@@ -207,7 +209,7 @@ int main(int argc, char *argv[]) {
     }
 
     /* Standard read from stdin */
-    line = xxcalloc(LINE_LIMIT, sizeof(char));
+    line = calloc(LINE_LIMIT, sizeof(char));
     INFILE = stdin;
     while (get_next_line() != NULL) {
 	results = 0;
@@ -229,10 +231,10 @@ int main(int argc, char *argv[]) {
 	if (chain_pos->net != NULL) {
 	    fsm_destroy(chain_pos->net);
 	}
-	xxfree(chain_pos);
+	free(chain_pos);
     }
     if (line != NULL)
-    	xxfree(line);
+    	free(line);
     exit(0);
 }
 
@@ -268,10 +270,10 @@ void handle_line(char *s) {
 	    }
 	}
     } else {
-	    
+
 	/* Get result from chain */
-	for (chain_pos = chain_head, tempstr = s;  ; chain_pos = chain_pos->next) {		
-	    result = applyer(chain_pos->ah, tempstr);		
+	for (chain_pos = chain_head, tempstr = s;  ; chain_pos = chain_pos->next) {
+	    result = applyer(chain_pos->ah, tempstr);
 	    if (result != NULL && chain_pos != chain_tail) {
 		tempstr = result;
 		continue;

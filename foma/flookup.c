@@ -1,5 +1,5 @@
 /*   Foma: a finite-state toolkit and library.                                 */
-/*   Copyright © 2008-2015 Mans Hulden                                         */
+/*   Copyright © 2008-2021 Mans Hulden                                         */
 
 /*   This file is part of foma.                                                */
 
@@ -20,11 +20,23 @@
 #include <stdio.h>
 #include <limits.h>
 #include <getopt.h>
-#include <unistd.h>
 #include <sys/types.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
 #include "fomalib.h"
+
+#ifdef _WIN32
+  #include <winsock2.h>
+  #include <ws2tcpip.h>
+  #pragma comment(lib, "ws2_32.lib")
+#else
+  #include <sys/socket.h>
+  #include <netinet/in.h>
+  #include <arpa/inet.h>
+  #include <unistd.h>
+#endif
+
+#ifdef _WIN32
+#define close(fd) closesocket(fd)
+#endif
 
 #define LINE_LIMIT 262144
 #define UDP_MAX 65535
@@ -32,7 +44,7 @@
 
 static char *usagestring = "Usage: flookup [-h] [-a] [-i] [-s \"separator\"] [-w \"wordseparator\"] [-v] [-x] [-b] [-I <#|#k|#m|f>] [-S] [-P] [-A] <binary foma file>\n";
 
-static char *helpstring = 
+static char *helpstring =
 "Applies words from stdin to a foma transducer/automaton read from a file and prints results to stdout.\n"
 
 "If the file contains several nets, inputs will be passed through all of them (simulating composition) or applied as alternates if the -a flag is specified (simulating priority union: the first net is tried first, if that fails to produce an output, then the second is tried, etc.).\n\n"
@@ -77,7 +89,7 @@ static FILE *INFILE;
 static struct lookup_chain *chain_head, *chain_tail, *chain_new, *chain_pos;
 static fsm_read_binary_handle fsrh;
 
-static char *(*applyer)() = &apply_up;  /* Default apply direction = up */
+static char *(*applyer)(struct apply_handle *h, char *word) = &apply_up;  /* Default apply direction = up */
 static void handle_line(char *s);
 static void app_print(char *result);
 static char *get_next_line();
@@ -117,6 +129,14 @@ int main(int argc, char *argv[]) {
     int opt, sortarcs = 1;
     char *infilename;
     struct fsm *net;
+
+		#ifdef _WIN32
+			WSADATA wsaData;
+			if (WSAStartup(MAKEWORD(2,2), &wsaData) != 0) {
+					fprintf(stderr, "WSAStartup failed\n");
+					return 1;
+			}
+		#endif
 
     setvbuf(stdout, buffer, _IOFBF, sizeof(buffer));
 
@@ -196,7 +216,7 @@ int main(int argc, char *argv[]) {
 
     while ((net = fsm_read_binary_file_multiple(fsrh)) != NULL) {
 	numnets++;
-	chain_new = xxmalloc(sizeof(struct lookup_chain));	
+	chain_new = malloc(sizeof(struct lookup_chain));
 	if (direction == DIR_DOWN && net->arcs_sorted_in != 1 && sortarcs) {
 	    fsm_sort_arcs(net, 1);
 	}
@@ -234,8 +254,8 @@ int main(int argc, char *argv[]) {
 
     if (mode_server) {
 	server_init();
-	serverstring = xxcalloc(UDP_MAX+1, sizeof(char));
-	line = xxcalloc(UDP_MAX+1, sizeof(char));
+	serverstring = calloc(UDP_MAX+1, sizeof(char));
+	line = calloc(UDP_MAX+1, sizeof(char));
 	addrlen = sizeof(clientaddr);
 	for (;;) {
 	    numbytes = recvfrom(listen_sd, line, UDP_MAX, 0,(struct sockaddr *)&clientaddr, &addrlen);
@@ -262,7 +282,7 @@ int main(int argc, char *argv[]) {
 	}
     } else {
 	/* Standard read from stdin */
-	line = xxcalloc(LINE_LIMIT, sizeof(char));
+	line = calloc(LINE_LIMIT, sizeof(char));
 	INFILE = stdin;
 	while (get_next_line() != NULL) {
 	    results = 0;
@@ -277,6 +297,9 @@ int main(int argc, char *argv[]) {
 	}
     }
    /* Cleanup */
+	#ifdef _WIN32
+		WSACleanup();
+	#endif
     for (chain_pos = chain_head; chain_pos != NULL; chain_pos = chain_head) {
 	chain_head = chain_pos->next;
 	if (chain_pos->ah != NULL) {
@@ -285,12 +308,12 @@ int main(int argc, char *argv[]) {
 	if (chain_pos->net != NULL) {
 	    fsm_destroy(chain_pos->net);
 	}
-	xxfree(chain_pos);
+	free(chain_pos);
     }
     if (serverstring != NULL)
-	xxfree(serverstring);
+	free(serverstring);
     if (line != NULL)
-    	xxfree(line);
+    	free(line);
     exit(0);
 }
 
@@ -322,10 +345,10 @@ void handle_line(char *s) {
 	    }
 	}
     } else {
-	    
+
 	/* Get result from chain */
-	for (chain_pos = chain_head, tempstr = s;  ; chain_pos = chain_pos->next) {		
-	    result = applyer(chain_pos->ah, tempstr);		
+	for (chain_pos = chain_head, tempstr = s;  ; chain_pos = chain_pos->next) {
+	    result = applyer(chain_pos->ah, tempstr);
 	    if (result != NULL && chain_pos != chain_tail) {
 		tempstr = result;
 		continue;
@@ -354,7 +377,10 @@ void handle_line(char *s) {
 }
 
 void server_init(void) {
+
     unsigned int rcvsize = 262144;
+    int retval;
+    char server_address_string[INET_ADDRSTRLEN];
 
     if ((listen_sd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
 	perror("socket() failed");
@@ -373,7 +399,15 @@ void server_init(void) {
     serveraddr.sin_family = AF_INET;
     serveraddr.sin_port = htons(port_number);
     if (server_address != NULL) {
-	serveraddr.sin_addr.s_addr = inet_addr(server_address);
+	retval = inet_pton(AF_INET, server_address, &serveraddr.sin_addr.s_addr);
+        if (retval != 1) {
+            if (retval == 0) {
+                printf("inet_pton() failed: string is not a valid address.\n");
+                exit(1);
+            }
+            perror("inet_pton() failed");
+            exit(1);
+        }
     } else {
 	serveraddr.sin_addr.s_addr = INADDR_ANY;
     }
@@ -381,5 +415,9 @@ void server_init(void) {
 	perror("bind() failed");
 	exit(1);
     }
-    printf("Started flookup server on %s port %i\n", inet_ntoa(serveraddr.sin_addr), port_number); fflush(stdout);
+    if (inet_ntop(AF_INET, &serveraddr.sin_addr, server_address_string, INET_ADDRSTRLEN) == NULL) {
+        perror("inet_ntop() failed");
+        exit(1);
+    }
+    printf("Started flookup server on %s port %i\n", server_address_string, port_number); fflush(stdout);
 }

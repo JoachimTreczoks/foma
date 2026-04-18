@@ -1,5 +1,5 @@
 /*   Foma: a finite-state toolkit and library.                                 */
-/*   Copyright © 2008-2015 Mans Hulden                                         */
+/*   Copyright © 2008-2021 Mans Hulden                                         */
 
 /*   This file is part of foma.                                                */
 
@@ -27,6 +27,7 @@
 #define REGEX_ENTRY 2
 
 extern int g_lexc_align;
+extern int g_verbose;
 
 struct multichar_symbols {
     char *symbol;
@@ -141,14 +142,14 @@ void lexc_add_sigma_hash(char *symbol, int number) {
         lexc_update_unknowns(number);
 
     if ((hashtable+ptr)->symbol == NULL) {
-        (hashtable+ptr)->symbol = xxstrdup(symbol);
+        (hashtable+ptr)->symbol = strdup(symbol);
         (hashtable+ptr)->sigma_number = number;
         return;
     }
     for (h = hashtable+ptr; h->next != NULL; h = h->next) {
     }
-    hnew = xxmalloc(sizeof(struct lexc_hashtable));
-    hnew->symbol = xxstrdup(symbol);
+    hnew = malloc(sizeof(struct lexc_hashtable));
+    hnew->symbol = strdup(symbol);
     hnew->sigma_number = number;
     h->next = hnew;
     hnew->next = NULL;
@@ -165,11 +166,11 @@ void lexc_init() {
     lexc_statecount = 0;
     net_has_unknown = 0;
     lexc_clear_current_word();
-    hashtable = xxcalloc(SIGMA_HASH_TABLESIZE, sizeof(struct lexc_hashtable));
+    hashtable = calloc(SIGMA_HASH_TABLESIZE, sizeof(struct lexc_hashtable));
 
     maxlen = 0;
 
-    mchash = xxcalloc(256*256, sizeof(_Bool));
+    mchash = calloc(256*256, sizeof(_Bool));
     for (i=0; i< SIGMA_HASH_TABLESIZE; i++) {
         (hashtable+i)->symbol = NULL;
         (hashtable+i)->sigma_number = -1;
@@ -185,7 +186,7 @@ void lexc_clear_current_word() {
 
 void lexc_add_state(struct states *s) {
     struct statelist *sl;    
-    sl = xxmalloc(sizeof(struct statelist));
+    sl = malloc(sizeof(struct statelist));
     sl->state = s;
     s->number = -1;
     sl->next = statelist;
@@ -210,7 +211,7 @@ void lexc_update_unknowns(int sigma_number) {
             continue;
         for (t=s->state->trans ; t!=NULL; t= t->next) {
             if (t->in == IDENTITY || t->out == IDENTITY) {
-                newtrans = xxmalloc(sizeof(struct trans));
+                newtrans = malloc(sizeof(struct trans));
                 newtrans->in = sigma_number;
                 newtrans->out = sigma_number;
                 newtrans->target = t->target;
@@ -239,7 +240,7 @@ void lexc_add_network() {
     net = current_regex_network;
     fsm = net->states;
 
-    sigreplace = xxcalloc(sigma_max(net->sigma)+1,sizeof(int));
+    sigreplace = calloc(sigma_max(net->sigma)+1,sizeof(int));
 
     for (sigma = net->sigma; sigma != NULL && sigma->number != -1; sigma = sigma->next) {
         if ((signumber = lexc_find_sigma_hash(sigma->symbol)) == -1) {
@@ -265,7 +266,7 @@ void lexc_add_network() {
             unknown_symbols = 1;
     }
     if (unknown_symbols == 1) {
-        unk = xxcalloc(sigma_max(lexsigma)+2,sizeof(int));
+        unk = calloc(sigma_max(lexsigma)+2,sizeof(int));
         for (i=0, sigma = lexsigma; sigma != NULL && sigma->number != -1; sigma=sigma->next) {
             if (sigma->number > 2 && sigma_find(sigma->symbol, net->sigma) == -1) {
                 *(unk+i) = sigma->number;
@@ -274,11 +275,11 @@ void lexc_add_network() {
         }
     }
 
-    slist = xxcalloc(sizeof(**slist),maxstate+1);
-    finals = xxcalloc(sizeof(int),maxstate+1);
+    slist = calloc(sizeof(**slist),maxstate+1);
+    finals = calloc(sizeof(int),maxstate+1);
 
     for (i=0; i <= maxstate;i++) {
-        newstate = xxmalloc(sizeof(struct states));
+        newstate = malloc(sizeof(struct states));
         *(slist+i) = newstate;
         newstate->trans = NULL;
         newstate->lexstate = NULL;
@@ -287,7 +288,7 @@ void lexc_add_network() {
         newstate->mergeable = 0;
         newstate->distance = 0;
         newstate->merge_with = newstate;
-        s = xxmalloc(sizeof(struct statelist));
+        s = malloc(sizeof(struct statelist));
         s->state = newstate;
         s->next = statelist;
         s->start = 0;
@@ -295,7 +296,7 @@ void lexc_add_network() {
         statelist = s;
     }
     /* Add an EPSILON transition from sourcestate to state 0 */
-    newtrans = xxmalloc(sizeof(struct trans));
+    newtrans = malloc(sizeof(struct trans));
     newtrans->in = EPSILON;
     newtrans->out = EPSILON;
     newtrans->target = *slist;
@@ -305,7 +306,7 @@ void lexc_add_network() {
     for (i=0; (fsm+i)->state_no != -1; i++) {
         if ((fsm+i)->target != -1) {
             newstate = *(slist+(fsm+i)->state_no);
-            newtrans = xxmalloc(sizeof(struct trans));
+            newtrans = malloc(sizeof(struct trans));
             newtrans->in = (fsm+i)->in;
             newtrans->out = (fsm+i)->out;
             newtrans->target = *(slist+(fsm+i)->target);
@@ -316,7 +317,7 @@ void lexc_add_network() {
             if (unknown_symbols == 1) {
                 if ((fsm+i)->in == IDENTITY || (fsm+i)->out == IDENTITY) {
                     for (j=0; *(unk+j) != 0; j++) {
-                        newtrans = xxmalloc(sizeof(struct trans));
+                        newtrans = malloc(sizeof(struct trans));
                         newtrans->in = *(unk+j);
                         newtrans->out = *(unk+j);
                         newtrans->target = *(slist+(fsm+i)->target);
@@ -331,7 +332,7 @@ void lexc_add_network() {
     /* Add an EPSILON transition from all final states to deststate */
     for (i=0; i <= maxstate; i++) {
         if (finals[i] == 1) {
-            newtrans = xxmalloc(sizeof(struct trans));
+            newtrans = malloc(sizeof(struct trans));
             newtrans->in = newtrans->out = EPSILON;
             newtrans->target = deststate;
             newstate = *(slist+i);
@@ -340,11 +341,11 @@ void lexc_add_network() {
         }
     }
     if (unknown_symbols == 1) {
-        xxfree(unk);
+        free(unk);
         net_has_unknown = 1;
     }
-    xxfree(slist);
-    xxfree(finals);
+    free(slist);
+    free(finals);
 }
 
 void lexc_set_network(struct fsm *net) {
@@ -371,13 +372,13 @@ void lexc_set_current_lexicon(char *name, int which) {
             return;
         }
     }
-    l = xxmalloc(sizeof(struct lexstates));
+    l = malloc(sizeof(struct lexstates));
     l->next = lexstates;
-    l->name = xxstrdup(name);
+    l->name = strdup(name);
     l->has_outgoing = 0;
     l->targeted = 0;
     lexstates = l;
-    newstate = xxmalloc(sizeof(struct states));
+    newstate = malloc(sizeof(struct states));
     lexc_add_state(newstate);
     newstate->lexstate = l;
     newstate->trans = NULL;
@@ -505,8 +506,12 @@ void lexc_medpad() {
     for (i = 0; cwordout[i] != -1; i++) { }
     s2len = i;
     
-    int matrix[s1len+2][s2len+2];
-    int dirmatrix[s1len+2][s2len+2];
+    int **matrix = calloc(s1len + 2, sizeof(int*));
+    int** dirmatrix = calloc(s1len + 2, sizeof(int*));
+    for (size_t i = 0; i < s1len + 2; ++i) {
+        matrix[i] = calloc(s2len + 2, sizeof(int));
+        dirmatrix[i] = calloc(s2len + 2, sizeof(int));
+    }
 
     matrix[0][0] = 0;
     dirmatrix[0][0] = 0;
@@ -561,6 +566,13 @@ void lexc_medpad() {
     }
     cwordin[j] = -1;
     cwordout[j] = -1;
+
+    for (size_t i = 0; i < s1len + 2; ++i) {
+        free(matrix[i]);
+        free(dirmatrix[i]);
+    }
+    free(matrix);
+    free(dirmatrix);
 }
 
 void lexc_pad() {
@@ -674,8 +686,8 @@ void lexc_add_mc(char *symbol) {
         mcprev = NULL;
         for (mcs = mc; mcs != NULL && utf8strlen(mcs->symbol) > len; mcprev = mcs, mcs=mcs->next) {
         }
-        mcnew = xxmalloc(sizeof(struct multichar_symbols));
-        mcnew->symbol = xxstrdup(symbol);
+        mcnew = malloc(sizeof(struct multichar_symbols));
+        mcnew->symbol = strdup(symbol);
         mcnew->next = mcs;
         if ((mc == NULL) ||(mcs != NULL && mcprev == NULL))
             mc = mcnew;
@@ -747,11 +759,11 @@ void lexc_add_word() {
         }
         follow = 0;
 
-        newtrans = xxmalloc(sizeof(struct trans));
+        newtrans = malloc(sizeof(struct trans));
         if (*(cwordin+i+1) == -1) {
             newtrans->target = deststate;
         } else {
-            newstate = xxmalloc(sizeof(struct states));
+            newstate = malloc(sizeof(struct states));
             lexc_add_state(newstate);
             newtrans->target = newstate;
             newstate->trans = NULL;
@@ -796,7 +808,11 @@ void lexc_number_states() {
         for (s = statelist; s != NULL; s = s->next) {        
             if (s->next == NULL) {
                 s->state->number = 0;
-                fprintf(stderr,"*Warning: no Root lexicon, using '%s' as Root.\n",s->state->lexstate->name);
+                if (g_verbose)
+                {
+                    fprintf(stderr,"*Warning: no Root lexicon, using '%s' as Root.\n",s->state->lexstate->name);
+                    fflush(stderr);
+                }
                 s->start = 1;
                 n++;
             }
@@ -823,12 +839,18 @@ void lexc_number_states() {
     lexc_statecount = n+1;
     for (l = lexstates; l != NULL ; l = l->next) {
         if (l->targeted == 0 && l->state->number != 0) {
-	    fprintf(stderr,"*Warning: lexicon '%s' defined but not used\n",l->name);
-            fflush(stdout);
+            if (g_verbose)
+            {
+                fprintf(stderr,"*Warning: lexicon '%s' defined but not used\n",l->name);
+                fflush(stderr);
+            }
         }
         if (l->has_outgoing == 0 && strcmp(l->name, "#") != 0) {
-	    fprintf(stderr,"***Warning: lexicon '%s' used but never defined\n",l->name);
-            fflush(stdout);
+            if (g_verbose)
+            {
+                fprintf(stderr,"***Warning: lexicon '%s' used but never defined\n",l->name);
+                fflush(stderr);
+            }
         }
     }
 }
@@ -862,7 +884,7 @@ void lexc_merge_states() {
     int i, numstates, tablesize, hash;
 
     /* Create array of ptrs to states depending on string length */
-    lenlist = xxcalloc(maxlen+1,sizeof(struct lenlist));
+    lenlist = calloc(maxlen+1,sizeof(struct lenlist));
     numstates = 0;
     for (s = statelist ; s!= NULL; s = s->next) {
         if (s->state->mergeable)
@@ -874,7 +896,7 @@ void lexc_merge_states() {
 
     for (i = 0; primes[i] < numstates/4; i++) { }    
     tablesize = primes[i];
-    hashstates = xxcalloc(tablesize,sizeof(struct hashstates));
+    hashstates = calloc(tablesize,sizeof(struct hashstates));
 
     for (s = statelist ; s!= NULL; s = s->next) {
         if (s->state->mergeable) {
@@ -883,7 +905,7 @@ void lexc_merge_states() {
             if (currentl->state == NULL)
                 currentl->state = s->state;
             else {
-                newl = xxcalloc(1,sizeof(struct lenlist));
+                newl = calloc(1,sizeof(struct lenlist));
                 newl->state = s->state;
                 newl->next = currentl->next;
                 currentl->next = newl;
@@ -893,7 +915,7 @@ void lexc_merge_states() {
             if (currenth->state == NULL) {
                 currenth->state = s->state;
             } else {
-                newh = xxcalloc(1,sizeof(struct hashstates));
+                newh = calloc(1,sizeof(struct hashstates));
                 newh->state = s->state;
                 newh->next = currenth->next;
                 currenth->next = newh; 
@@ -929,14 +951,14 @@ void lexc_merge_states() {
         for (t = s->state->trans, tprev = NULL; t != NULL; tprev = t, t = t->next) {
             t->target = t->target->merge_with;
             if (tprev != NULL && s->state->mergeable == 2) {
-                xxfree(tprev);
+                free(tprev);
             } else {
                 if (t->target->lexstate != NULL)
                     t->target->lexstate->targeted = 1;
             }
         }
         if (tprev != NULL && s->state->mergeable == 2)
-            xxfree(tprev);
+            free(tprev);
     }
     for (s = statelist, sprev = NULL; s != NULL; ) {
         if (s->state->mergeable == 2) {
@@ -945,10 +967,10 @@ void lexc_merge_states() {
             } else {
                 statelist = s;
             }
-            xxfree(s->state);
+            free(s->state);
             sf = s;
             s = s->next;
-            xxfree(sf);
+            free(sf);
         } else {
             sprev = s;
             s = s ->next;
@@ -961,24 +983,24 @@ void lexc_merge_states() {
         newl = NULL;
         for (currentl = (lenlist+i)->next; currentl != NULL ;currentl=currentl->next) {
             if (newl != NULL)
-                xxfree(newl);
+                free(newl);
             newl = currentl;
         }
         if (newl != NULL)
-            xxfree(newl);
+            free(newl);
     }
     for (i = 0; i < tablesize ; i++) {
         newh = NULL;
         for (currenth = (hashstates+i)->next; currenth != NULL ;currenth=currenth->next) {
             if (newh != NULL)
-                xxfree(newh);
+                free(newh);
             newh = currenth;
         }
         if (newh != NULL)
-            xxfree(newh);
+            free(newh);
     }
-    xxfree(hashstates);
-    xxfree(lenlist);
+    free(hashstates);
+    free(lenlist);
 }
 
 struct fsm *lexc_to_fsm() {
@@ -988,18 +1010,25 @@ struct fsm *lexc_to_fsm() {
     struct trans *t;
     int i, j,  linecount;
 
-    fprintf(stderr,"Building lexicon...\n");
-    fflush(stdout);
+    if (g_verbose)
+    {
+        fprintf(stderr,"Building lexicon...\n");
+        fflush(stderr);
+    }
     lexc_merge_states();
     net = fsm_create("");
-    xxfree(net->sigma);
+    free(net->sigma);
     net->sigma = lexsigma;
     lexc_number_states();
     if (hasfinal == 0) {
-        fprintf(stderr,"Warning: # is never reached!!!\n");
+        if (g_verbose)
+        {
+            fprintf(stderr,"Warning: # is never reached!!!\n");
+            fflush(stderr);
+        }
         return(fsm_empty_set());
     }
-    sa = xxmalloc(sizeof(struct statelist)*lexc_statecount);
+    sa = malloc(sizeof(struct statelist)*lexc_statecount);
     for (s = statelist; s != NULL; s = s->next) {
         sa[s->state->number].state = s->state;
         sa[s->state->number].start = s->start;
@@ -1011,7 +1040,7 @@ struct fsm *lexc_to_fsm() {
         for (t = s->state->trans; t != NULL; t = t->next)
             linecount++;
     }
-    fsm = xxmalloc(sizeof(struct fsm_state)*(linecount+1));
+    fsm = malloc(sizeof(struct fsm_state)*(linecount+1));
     for (i = 0, j = 0, s = sa; j < lexc_statecount; j++) {
         if (s[j].state->trans == NULL) {
             add_fsm_arc(fsm,i,s[j].state->number, -1, -1, -1, s[j].final, s[j].start);
@@ -1029,18 +1058,28 @@ struct fsm *lexc_to_fsm() {
     fsm_update_flags(net, UNK, UNK, UNK, UNK, UNK, UNK);
     if (sigma_find_number(EPSILON, lexsigma) == -1)
         sigma_add_special(EPSILON, lexsigma);
-    xxfree(s);
+    free(s);
     lexc_cleanup();
     sigma_cleanup(net,0);
     sigma_sort(net);
     
-    fprintf(stderr,"Determinizing...\n");
-    fflush(stdout);
+    if (g_verbose)
+    {
+        fprintf(stderr,"Determinizing...\n");
+        fflush(stderr);
+    }
     net = fsm_determinize(net);
-    fprintf(stderr,"Minimizing...\n");
-    fflush(stdout);
+    if (g_verbose)
+    {
+        fprintf(stderr,"Minimizing...\n");
+        fflush(stderr);
+    }
     net = fsm_topsort(fsm_minimize(net));
-    fprintf(stderr,"Done!\n");
+    if (g_verbose)
+    {
+        fprintf(stderr,"Done!\n");
+        fflush(stderr);
+    }
     return(net);
 }
 
@@ -1051,37 +1090,37 @@ void lexc_cleanup() {
     struct multichar_symbols *mcs, *mcsn;
     struct lexc_hashtable *lhash, *lprev;
     int i;
-    xxfree(mchash);
+    free(mchash);
     for (i=0; i < SIGMA_HASH_TABLESIZE; i++) {
         for (lhash = hashtable+i; lhash != NULL; ) {
             if (lhash->symbol != NULL) {
-                xxfree(lhash->symbol);
+                free(lhash->symbol);
             }
             lprev = lhash;
             lhash = lhash->next;
-            if (lprev != hashtable+i) { xxfree(lprev); }
+            if (lprev != hashtable+i) { free(lprev); }
         }
     }
-    xxfree(hashtable);
+    free(hashtable);
     for (mcs = mc ; mcs != NULL ; mcs = mcsn) {
         mcsn = mcs->next;
-	xxfree(mcs->symbol);
-        xxfree(mcs);
+	free(mcs->symbol);
+        free(mcs);
     }
     for (l = lexstates ; l != NULL ; l = ln) {
         ln = l->next;
-        xxfree(l->name);
-        xxfree(l);
+        free(l->name);
+        free(l);
     }
     for (s = statelist; s != NULL; s = s->next) {
         for (t = s->state->trans; t != NULL; t = tn) {
             tn = t->next;
-            xxfree(t);
+            free(t);
         }
-        xxfree(s->state);
+        free(s->state);
     }
     for (s = statelist; s != NULL; s = sn) {
         sn = s->next;
-        xxfree(s);
+        free(s);
     }
 }

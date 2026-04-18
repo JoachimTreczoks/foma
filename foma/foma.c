@@ -1,5 +1,5 @@
 /*   Foma: a finite-state toolkit and library.                                 */
-/*   Copyright © 2008-2015 Mans Hulden                                         */
+/*   Copyright © 2008-2021 Mans Hulden                                         */
 
 /*   This file is part of foma.                                                */
 
@@ -18,7 +18,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <ctype.h>
+#ifndef _MSC_VER
 #include <unistd.h>
+#endif
 #include <getopt.h>
 #include <time.h>
 #include <readline/readline.h>
@@ -26,7 +28,7 @@
 
 /* Front-end behavior variables */
 int pipe_mode = 0;
-int quiet_mode = 0;
+extern int g_verbose;
 static int use_readline = 1;
 
 int promptmode = PROMPT_MAIN;
@@ -39,7 +41,7 @@ char *usagestring = "Usage: foma [-e \"command\"] [-f run-once-script] [-l start
 
 static char** my_completion(const char*, int ,int);
 char *my_generator(const char* , int);
-char *cmd [] = {"ambiguous upper","apply down","apply med","apply up","apropos","assert-stack","clear stack","close sigma","compact sigma","complete net","compose net","concatenate net","crossproduct net","define","determinize net","echo","eliminate flags","eliminate flag","export cmatrix","extract ambiguous","extract unambiguous","factorize","help license","help warranty","ignore net","intersect net","invert net","label net","letter machine","load defined","lower-side net","minimize net","name net","negate net","one-plus net","pop stack","print defined","print dot","print lower-words","print cmatrix","print name","print net","print random-lower","print random-upper","print random-words","print sigma","print size","print shortest-string","print shortest-string-length","print words","print pairs","print random-pairs","print upper-words","prune net","push defined","quit","read att","read cmatrix","read prolog","read lexc","read regex","read spaced-text","read text","reverse net","rotate stack","save defined","save stack","sequentialize","set","show variables","show variable","shuffle net","sigma","sigma net","source","sort in","sort net","sort out","substitute defined","substitute symbol","system","test unambiguous","test star-free","test equivalent","test functional","test identity","test lower-universal","test upper-universal","test non-null","test null","test sequential","turn stack","twosided flag-diacritics","undefine","union net","upper-side net","view net","write att","write prolog","zero-plus net",NULL};
+char *cmd [] = {"ambiguous upper","apply down","apply med","apply up","apropos","assert-stack","clear stack","close sigma","compact sigma","complete net","compose net","concatenate net","crossproduct net","define","determinize net","echo","eliminate flags","eliminate flag","export cmatrix","extract ambiguous","extract unambiguous","factorize","help license","help warranty","ignore net","intersect net","invert net","label net","letter machine","load defined","lower-side net","minimize net","name net","negate net","one-plus net","pop stack","print defined","print dot","print lower-words","print cmatrix","print name","print net","print random-lower","print random-upper","print random-words","print sigma","print size","print shortest-string","print shortest-string-length","print words","print pairs","print random-pairs","print upper-words","prune net","push defined","quit","read att","read cmatrix","read prolog","read lexc","read regex","read spaced-text","read text","reverse net","rotate stack","save defined","save stack","sequentialize","set","show variables","show variable","shuffle net","sigma","sigma net","source","sort in","sort net","sort out","substitute defined","substitute symbol","system","test unambiguous","test equivalent","test functional","test identity","test lower-universal","test upper-universal","test non-null","test null","test sequential","turn stack","twosided flag-diacritics","undefine","union net","upper-side net","view net","write att","write prolog","zero-plus net",NULL};
 
 char *abbrvcmd [] = {"ambiguous","close","down","up","med","size","loadd","lower-words","upper-words","net","random-lower","random-upper","words","random-words","regex","rpl","au revoir","bye","exit","saved","seq","ss","stack","tunam","tid","tfu","tlu","tuu","tnu","tnn","tseq","tsf","equ","pss","psz","ratt","tfd","hyvästi","watt","wpl","examb","exunamb","pairs","random-pairs",NULL};
 
@@ -52,7 +54,7 @@ extern int add_history (const char *);
 extern int my_yyparse(char *my_string);
 void print_help();
 void xprintf(char *string) { return ; printf("%s",string); }
-char disclaimer[] = "Foma, version 0.9.18alpha\nCopyright © 2008-2015 Mans Hulden\nThis is free software; see the source code for copying conditions.\nThere is ABSOLUTELY NO WARRANTY; for details, type \"help license\"\n\nType \"help\" to list all commands available.\nType \"help <topic>\" or help \"<operator>\" for further help.\n\n";
+char disclaimer[] = "Foma, version 0.10.0\nCopyright © 2008-2021 Mans Hulden\nThis is free software; see the source code for copying conditions.\nThere is ABSOLUTELY NO WARRANTY; for details, type \"help license\"\n\nType \"help\" to list all commands available.\nType \"help <topic>\" or help \"<operator>\" for further help.\n\n";
 
 /* A static variable for holding the line. */
 
@@ -65,7 +67,7 @@ char no_readline_line[512];
    Returns NULL on EOF. */
 
 char *rl_gets(char *prompt) {
-    
+
     /* If the buffer has already been allocated,
        return the memory to the free pool. */
     if (use_readline == 1) {
@@ -83,12 +85,12 @@ char *rl_gets(char *prompt) {
     } else {
         line_read = readline(prompt);
     }
-    
+
     /* If the line has any text in it,
        save it on the history. */
     if (use_readline == 1) {
         if (line_read && *line_read)
-            add_history(line_read);        
+            add_history(line_read);
     }
     return (line_read);
 }
@@ -125,14 +127,14 @@ int main(int argc, char *argv[]) {
             if (scriptfile != NULL) {
                 input_is_file = 1;
                 my_interfaceparse(scriptfile);
-		xxfree(scriptfile);
+		free(scriptfile);
             }
             break;
         case 'p':
             pipe_mode = 1;
             break;
         case 'q':
-            quiet_mode = 1;
+            g_verbose = 0;
             break;
         case 'r':
             use_readline = 0;
@@ -148,7 +150,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    if (!pipe_mode && !quiet_mode) 
+    if (!pipe_mode && g_verbose)
         printf("%s",disclaimer);
     rl_basic_word_break_characters = " >";
 
@@ -162,11 +164,11 @@ int main(int argc, char *argv[]) {
             sprintf(prompt, "apply up> ");
         if (promptmode == PROMPT_A && apply_direction == AP_M)
             sprintf(prompt, "apply med> ");
-        if (pipe_mode || quiet_mode)
+        if (pipe_mode || !g_verbose)
 	    prompt[0] = '\0';
 
 	fflush(stdout);
-	
+
         command = rl_gets(prompt);
 
         if (command == NULL && promptmode == PROMPT_MAIN) {
@@ -203,8 +205,8 @@ static char **my_completion(const char *text, int start, int end) {
     matches = (char **)NULL;
     smatch = start;
     matches = rl_completion_matches ((char*)text, &my_generator);
-    
-    return (matches);    
+
+    return (matches);
 }
 
 char *my_generator(const char *text, int state) {
@@ -217,27 +219,27 @@ char *my_generator(const char *text, int state) {
         nummatches = 0;
         len = strlen(text);
     }
-    
+
     while ((name = cmd[list_index])) {
         list_index++;
 
         if (strncmp (name, text, len) == 0) {
-            nummatches++;            
-            /* Can't use xxstrdup here */
+            nummatches++;
+            /* Can't use strdup here */
             return(strdup(name+smatch));
         }
     }
-    
+
     if (rl_point > 0) {
         while ((name = abbrvcmd[list_index2])) {
             list_index2++;
-            
-            /* Can't use xxstrdup here */
+
+            /* Can't use strdup here */
             if (strncmp (name, text, len) == 0)
                 return(strdup(name+smatch));
-        }        
+        }
     }
-    
+
     /* If no names matched, then return NULL. */
     return ((char *)NULL);
 }

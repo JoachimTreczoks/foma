@@ -1,5 +1,5 @@
 /*   Foma: a finite-state toolkit and library.                                 */
-/*   Copyright © 2008-2015 Mans Hulden                                         */
+/*   Copyright © 2008-2021 Mans Hulden                                         */
 
 /*   This file is part of foma.                                                */
 
@@ -43,9 +43,6 @@ struct binaryline {
 };
 
 extern char *g_att_epsilon;
-
-extern struct defined_networks   *g_defines;
-extern struct defined_functions  *g_defines_f;
 
 struct io_buf_handle {
     char *io_buf;
@@ -96,8 +93,8 @@ int foma_write_prolog (struct fsm *net, char *filename) {
   }
   fsm_count(net);
   maxsigma = sigma_max(net->sigma);
-  used_symbols = xxcalloc(maxsigma+1,sizeof(int));
-  finals = xxmalloc(sizeof(int)*(net->statecount));
+  used_symbols = calloc(maxsigma+1,sizeof(int));
+  finals = malloc(sizeof(int)*(net->statecount));
   stateptr = net->states;
   identifier[0] = '\0';
 
@@ -183,8 +180,8 @@ int foma_write_prolog (struct fsm *net, char *filename) {
   if (filename != NULL) {
       fclose(out);
   }
-  xxfree(finals);
-  xxfree(used_symbols);
+  free(finals);
+  free(used_symbols);
   return 1;
 }
 
@@ -385,7 +382,7 @@ struct fsm *fsm_read_prolog (char *filename) {
 
 struct io_buf_handle *io_init() {
     struct io_buf_handle *iobh;
-    iobh = xxmalloc(sizeof(struct io_buf_handle));
+    iobh = malloc(sizeof(struct io_buf_handle));
     (iobh->io_buf) = NULL;
     (iobh->io_buf_ptr) = NULL;
     return(iobh);
@@ -393,10 +390,10 @@ struct io_buf_handle *io_init() {
 
 void io_free(struct io_buf_handle *iobh) {
     if (iobh->io_buf != NULL) {
-        xxfree(iobh->io_buf);
+        free(iobh->io_buf);
         (iobh->io_buf) = NULL;
     }
-    xxfree(iobh);
+    free(iobh);
 }
 
 char *spacedtext_get_next_line(char **text) {
@@ -477,7 +474,7 @@ struct fsm *fsm_read_spaced_text_file(char *filename) {
 	    fsm_trie_end_word(th);
 	}
     }
-    xxfree(textorig);
+    free(textorig);
     return(fsm_trie_done(th));
 }
 
@@ -505,7 +502,7 @@ struct fsm *fsm_read_text_file(char *filename) {
 	if (strlen(textp1) > 0)
 	    fsm_trie_add_word(th, textp1);
     }
-    xxfree(text);
+    free(text);
     return(fsm_trie_done(th));
 }
 
@@ -529,7 +526,7 @@ struct fsm *fsm_read_binary_file_multiple(fsm_read_binary_handle fsrh) {
 	io_free(iobh);
 	return(NULL);
     } else {
-	xxfree(net_name);
+	free(net_name);
 	return(net);
     }
 }
@@ -575,7 +572,11 @@ int save_defined(struct defined_networks *def, char *filename) {
     }
     printf("Writing definitions to file %s.\n", filename);
     for (d = def; d != NULL; d = d->next) {
-        strcpy(d->net->name, d->name);
+        if (!d->net) {
+            printf("Skipping definition without network.\n");
+            continue;
+        }
+        strncpy(d->net->name, d->name, FSM_NAME_LEN);
         foma_net_print(d->net, outfile);
     }
     gzclose(outfile);
@@ -704,8 +705,8 @@ struct fsm *io_net_read(struct io_buf_handle *iobh, char **net_name) {
     io_gets(iobh, buf);
     extras = 0;
     sscanf(buf, "%i %i %i %i %i %lld %i %i %i %i %i %i %s", &net->arity, &net->arccount, &net->statecount, &net->linecount, &net->finalcount, &net->pathcount, &net->is_deterministic, &net->is_pruned, &net->is_minimized, &net->is_epsilon_free, &net->is_loop_free, &extras, buf);
-    strcpy(net->name, buf);
-    *net_name = xxstrdup(buf);
+    strncpy(net->name, buf, FSM_NAME_LEN);
+    *net_name = strdup(buf);
     io_gets(iobh, buf);
 
     net->is_completed = (extras & 3);
@@ -743,7 +744,7 @@ struct fsm *io_net_read(struct io_buf_handle *iobh, char **net_name) {
         printf("File format error!\n");
         return NULL;
     }
-    net->states = xxmalloc(net->linecount*sizeof(struct fsm_state));
+    net->states = malloc(net->linecount*sizeof(struct fsm_state));
     fsm = net->states;
     laststate = -1;
     for (i=0; ;i++) {
@@ -915,7 +916,7 @@ int net_print_att(struct fsm *net, FILE *outfile) {
             fprintf(outfile, "%i\n",(fsm+i)->state_no);
         }
     }
-    xxfree(sl);
+    free(sl);
     return(1);
 }
 
@@ -977,7 +978,7 @@ size_t io_gz_file_to_mem(struct io_buf_handle *iobh, char *filename) {
     if (size == 0) {
         return 0;
     }
-    (iobh->io_buf) = xxmalloc((size+1)*sizeof(char));
+    (iobh->io_buf) = malloc((size+1)*sizeof(char));
     FILE = gzopen(filename, "rb");
     gzread(FILE, iobh->io_buf, size);
     gzclose(FILE);
@@ -986,10 +987,36 @@ size_t io_gz_file_to_mem(struct io_buf_handle *iobh, char *filename) {
     return(size);
 }
 
+typedef struct BOM {
+    char code[4];
+    int len;
+    char* name;
+} BOM;
+
+static BOM BOM_codes[] = {
+    { { 0xEF, 0xBB, 0xBF }, 3, "UTF-8"},
+    { { 0xFF, 0xFE, 0x00, 0x00 }, 4, "UTF-32LE" },
+    { { 0x00, 0x00, 0xFE, 0xFF }, 4, "UTF-32BE" },
+    { { 0xFF, 0xFE }, 2, "UTF16-LE" },
+    { { 0xFE, 0xFF }, 2, "UTF16-BE" },
+    { { 0, } , 0, NULL },
+};
+
+BOM *check_BOM(char *buffer) {
+    BOM *bom;
+    for(bom = BOM_codes; bom->len; bom++) {
+        if(strncmp(bom->code, buffer, bom->len) == 0) {
+            return bom;
+        }
+    }
+    return NULL;
+}
+
 char *file_to_mem(char *name) {
     FILE    *infile;
     size_t    numbytes;
     char *buffer;
+    BOM  *bom;
     infile = fopen(name, "r");
     if(infile == NULL) {
         printf("Error opening file '%s'\n",name);
@@ -998,13 +1025,19 @@ char *file_to_mem(char *name) {
     fseek(infile, 0L, SEEK_END);
     numbytes = ftell(infile);
     fseek(infile, 0L, SEEK_SET);
-    buffer = (char*)xxmalloc((numbytes+1) * sizeof(char));
+    buffer = (char*)malloc((numbytes+1) * sizeof(char));
     if(buffer == NULL) {
         printf("Error reading file '%s'\n",name);
         return NULL;
     }
     if (fread(buffer, sizeof(char), numbytes, infile) != numbytes) {
         printf("Error reading file '%s'\n",name);
+        return NULL;
+    }
+
+    bom = check_BOM(buffer);
+    if (bom != NULL) {
+        printf("%s BOM mark is detected in file '%s'.\n",bom->name,name);
         return NULL;
     }
     fclose(infile);

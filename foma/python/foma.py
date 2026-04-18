@@ -159,7 +159,7 @@ class FST(object):
     functiondefinitions = FSTfunctiondefinitions()
 
     # Generalize over Python2 and Python3 types
-    string_types = str   if version_info[0] > 2 else basestring
+    string_type  = str   if version_info[0] > 2 else basestring
     text_type    = str   if version_info[0] > 2 else unicode
     binary_type  = bytes if version_info[0] > 2 else str
 
@@ -471,7 +471,7 @@ class FST(object):
 class MTFSM(FST):
 
     def __init__(self, regex = False, numtapes = 2):
-        if isinstance(regex, str) or isinstance(regex, unicode):
+        if isinstance(regex, FST.string_type):
             FST.__init__(self, regex)
             eps_sym = FST('□')
             self.fsthandle = foma_fsm_flatten(foma_fsm_copy(self.fsthandle), foma_fsm_copy(eps_sym.fsthandle))
@@ -497,6 +497,17 @@ class MTFSM(FST):
         s += 'Minimized: %i\n' % self.fsthandle.contents.is_minimized
         s += 'Numtapes: %i\n' % self.numtapes
         return s
+    
+    def generate(self, word):
+
+        m = self.numtapes
+        regx = (u'[{' + word + u'}/□ .o. [? 0:?^' + str(m-1) + ']*].l')
+        reg = FST(regx)
+        gr = FST()
+        gr.fsthandle = foma_fsm_copy(self.fsthandle)
+        res = MTFSM(reg.intersect(gr), numtapes = m)
+        return res
+    
 
     def parse(self, word):
         #[word/□ .o. [0:?^(numtapes-1) ?]*].l & Grammar ;
@@ -568,12 +579,12 @@ class MTFSM(FST):
             raise ValueError('FST not defined')
         applyerhandle = foma_apply_init(self.fsthandle)
         toksym = '\x07'
-        foma_apply_set_space_symbol(c_void_p(applyerhandle), c_char_p(toksym))
+        foma_apply_set_space_symbol(c_void_p(applyerhandle), c_char_p(self.encode(toksym)))
         output = applyf(c_void_p(applyerhandle))
         while True:
             if output is None:
                 foma_apply_clear(c_void_p(applyerhandle))
                 return
             else:
-                yield self._fmt(output[:-1].split('\x07'))
+                yield self._fmt(self.decode(output)[:-1].split('\x07'))
             output = applyf(c_void_p(applyerhandle))

@@ -1,5 +1,5 @@
 /*   Foma: a finite-state toolkit and library.                                 */
-/*   Copyright © 2008-2015 Mans Hulden                                         */
+/*   Copyright © 2008-2021 Mans Hulden                                         */
 
 /*   This file is part of foma.                                                */
 
@@ -37,7 +37,7 @@ struct fsm *fsm_lower(struct fsm *net) {
         }
     }
     fsm_state_end_state();
-    xxfree(net->states);
+    free(net->states);
     fsm_state_close(net);
     fsm_update_flags(net,NO,NO,NO,UNK,UNK,UNK);
     sigma_cleanup(net,0);
@@ -63,7 +63,7 @@ struct fsm *fsm_upper(struct fsm *net) {
         }
     }
     fsm_state_end_state();
-    xxfree(net->states);
+    free(net->states);
     fsm_state_close(net);
     fsm_update_flags(net,NO,NO,NO,UNK,UNK,UNK);
     sigma_cleanup(net,0);

@@ -1,5 +1,5 @@
 /*   Foma: a finite-state toolkit and library.                                 */
-/*   Copyright © 2008-2015 Mans Hulden                                         */
+/*   Copyright © 2008-2021 Mans Hulden                                         */
 
 /*   This file is part of foma.                                                */
 
@@ -15,22 +15,34 @@
 /*   See the License for the specific language governing permissions and       */
 /*   limitations under the License.                                            */
 
+#ifndef FOMALIB_H
+#define FOMALIB_H
+
 #ifdef  __cplusplus
 extern "C" {
 #endif
 #include <stdio.h>
 #include <inttypes.h>
 #include <string.h>
+#include <stdbool.h>
 #include "zlib.h"
+
+#if !defined(bool) && !defined(_Bool)
+  #define _Bool bool
+#endif
 
 #define INLINE inline
 
+#ifdef _MSC_VER
+#define FEXPORT __declspec(dllexport)
+#else
 #define FEXPORT __attribute__((visibility("default")))
+#endif
 
 /* Library version */
 #define MAJOR_VERSION 0
-#define MINOR_VERSION 9
-#define BUILD_VERSION 18
+#define MINOR_VERSION 10
+#define BUILD_VERSION 0
 #define STATUS_VERSION "alpha"
 
 /* Special symbols on arcs */
@@ -82,6 +94,8 @@ extern "C" {
 #define APPLY_INDEX_INPUT 1
 #define APPLY_INDEX_OUTPUT 2
 
+#define FSM_NAME_LEN 40
+
 /* Defined networks */
 struct defined_networks {
   char *name;
@@ -106,7 +120,7 @@ struct defined_quantifiers {
 
 /** Main automaton structure */
 struct fsm {
-  char name[40];
+  char name[FSM_NAME_LEN];
   int arity;
   int arccount;
   int statecount;
@@ -193,6 +207,13 @@ int remove_defined (struct defined_networks *def, char *string);
 /********************/
 
 FEXPORT char *fsm_get_library_version_string();
+
+typedef enum {
+	FSMO_SKIP_WORD_BOUNDARY_MARKER, // _Bool
+	FSMO_NUM_OPTIONS
+} FSM_OPTIONS;
+FEXPORT _Bool fsm_set_option(unsigned long long option, void *value);
+FEXPORT void *fsm_get_option(unsigned long long option);
 
 FEXPORT struct fsm *fsm_determinize(struct fsm *net);
 FEXPORT struct fsm *fsm_epsilon_remove(struct fsm *net);
@@ -286,7 +307,7 @@ FEXPORT struct fsm *flag_eliminate(struct fsm *net, char *name);
 FEXPORT struct fsm *flag_twosided(struct fsm *net);
 
 /* Compile a rewrite rule */
-FEXPORT struct fsm *fsm_rewrite();
+FEXPORT struct fsm *fsm_rewrite(struct rewrite_set *all_rules);
 
 /* Boolean tests */
 FEXPORT int fsm_isempty(struct fsm *net);
@@ -503,3 +524,5 @@ FEXPORT void fsm_read_done(struct fsm_read_handle *handle);
 #ifdef  __cplusplus
 }
 #endif
+
+#endif /* FOMALIB_H */

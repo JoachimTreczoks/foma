@@ -1,5 +1,5 @@
 /*   Foma: a finite-state toolkit and library.                                 */
-/*   Copyright © 2008-2015 Mans Hulden                                         */
+/*   Copyright © 2008-2021 Mans Hulden                                         */
 
 /*   This file is part of foma.                                                */
 
@@ -24,8 +24,14 @@
 #define PROMPT_MAIN 0 /* Regular prompt */
 #define PROMPT_A 1    /* Apply prompt   */
 
-struct defined_networks   *g_defines;
-struct defined_functions  *g_defines_f;
+/** Runtime options */
+struct _fsm_options {
+	_Bool skip_word_boundary_marker;
+};
+extern struct _fsm_options fsm_options;
+
+extern struct defined_networks   *g_defines;
+extern struct defined_functions  *g_defines_f;
 
 /** User stack */
 struct stack_entry {
@@ -34,7 +40,7 @@ struct stack_entry {
   struct apply_med_handle *amedh;
   struct fsm *fsm;
   struct stack_entry *next;
-  struct stack_entry *previous;    
+  struct stack_entry *previous;
 };
 
 /* Quantifier & Logic-related */
@@ -107,7 +113,7 @@ void iface_print_shortest_string();
 void iface_print_shortest_string_size();
 void iface_print_name(void);
 void iface_quit(void);
-void iface_apply_random(char *(*applyer)(), int limit);
+void iface_apply_random(char *(*applyer)(struct apply_handle *h), int limit);
 void iface_random_lower(int limit);
 void iface_random_upper(int limit);
 void iface_random_words(int limit);

@@ -6,6 +6,15 @@ lex.*.[co]
 foma/foma
 flookup
 cgflookup
+libfoma.js
+libfoma.wasm
 regex.*
 !regex.l
 *.dylib
+**/CMakeFiles/
+Makefile
+*.so
+*.pc
+*.cmake
+CMake*
+__pycache__/

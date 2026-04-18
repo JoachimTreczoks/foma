@@ -1,5 +1,5 @@
 /*   Foma: a finite-state toolkit and library.                                 */
-/*   Copyright © 2008-2015 Mans Hulden                                         */
+/*   Copyright © 2008-2021 Mans Hulden                                         */
 
 /*   This file is part of foma.                                                */
 
@@ -50,6 +50,7 @@ static struct fsm *tempnet;
 extern int promptmode;
 extern int apply_direction;
 extern int g_list_limit;
+extern int g_verbose;
 
 extern int my_yyparse(char *my_string, int lineno, struct defined_networks *defined_nets, struct defined_functions *defined_funcs);
 extern void my_cmatrixparse(struct fsm *net, char *my_string);
@@ -68,18 +69,18 @@ int get_iface_lineno(void) {
 void clear_func_args(void) {
     struct func_args *fa, *fp;  
     for (fa = func_args; fa != NULL; ) {
-	xxfree(fa->arg);
+	free(fa->arg);
 	fp = fa;
 	fa = fa->next;
-	xxfree(fp);
+	free(fp);
     }
     func_args = NULL;
 }
 
 void add_func_arg(char *s) {
   struct func_args *fa;
-  fa = xxmalloc(sizeof(struct func_args));
-  fa->arg = xxstrdup(s);
+  fa = malloc(sizeof(struct func_args));
+  fa->arg = strdup(s);
   fa->next = func_args;
   fa->argno = func_arg_no;
   func_arg_no++;
@@ -91,7 +92,7 @@ char *rep_func_arg(char *s) {
   char *argstr;
   for (fa = func_args; fa != NULL; fa = fa->next) {
     if (strcmp(fa->arg,s) == 0) {
-        argstr = xxmalloc(sizeof(char)*20);
+        argstr = malloc(sizeof(char)*20);
         sprintf(argstr, "@ARGUMENT%02i@", fa->argno);
         return(argstr);
     }
@@ -154,7 +155,7 @@ NOSPEQ     [\001-\177]{-}[\040\041\043\075]|[\300-\337].|[\340-\357]..|[\360-\36
 ^{SP}*conc(a(t(e(n(a(te?)?)?)?)?)?)?({SP}+net?)? {iface_conc();}
 ^{SP}*cross(p(r(o(d(u(ct?)?)?)?)?)?)?({SP}+net?)? { iface_crossproduct();}
 ^{SP}*de(f(i(ne?)?)?)?{SP}+ { pmode = DE; BEGIN(DEFI); }
-^{SP}*{NOSPEQ}+{SP}*= { pmode = DE; lexc_trim(interfacetext); tempstr = xxstrdup(interfacetext); BEGIN(REGEX); }
+^{SP}*{NOSPEQ}+{SP}*= { pmode = DE; lexc_trim(interfacetext); tempstr = strdup(interfacetext); BEGIN(REGEX); }
 ^{SP}*det(e(r(m(i(n(i(ze?)?)?)?)?)?)?)?({SP}+net?)?	{ iface_determinize(); }
 ^{SP}*echo{SP} { BEGIN(ECHO); }
 ^{SP}*echo { printf("\n"); }
@@ -277,7 +278,7 @@ NOSPEQ     [\001-\177]{-}[\040\041\043\075]|[\300-\337].|[\340-\357]..|[\360-\36
 }
 <APPLY_FILE_OUT>{NONL}+ {
   iface_apply_file(tempstr, trim(interfacetext), applydir);
-  xxfree(tempstr);
+  free(tempstr);
   tempstr = NULL;
   BEGIN(INITIAL);
 }
@@ -354,20 +355,28 @@ NOSPEQ     [\001-\177]{-}[\040\041\043\075]|[\300-\337].|[\340-\357]..|[\360-\36
     if (my_yyparse(interfacetext, interfacelineno, g_defines, g_defines_f) == 0) {
       tempnet = fsm_topsort(fsm_minimize(current_parse));
       if (tempnet == NULL) {
-        printf("invalid regex detected\n");
+        if (g_verbose)
+        {
+          printf("invalid regex detected\n");
+        }
       /* regex xxx line */
       } else if (pmode == RE) {
          stack_add(current_parse);
       /* define XXX xxx line */
       } else if (pmode == DE) {
         olddef = add_defined(g_defines, tempnet,tempstr);
-        if (olddef) {
-          printf("redefined %s: ",tempstr);
-        } else {
-          printf("defined %s: ",tempstr);
+        if (g_verbose)
+        {
+          if (olddef == -1) {
+            printf("Network name '%s' should consist of at most %d characters.\n", tempstr, FSM_NAME_LEN);
+          } else if (olddef == 1) {
+            printf("redefined %s: ",tempstr);
+          } else {
+            printf("defined %s: ",tempstr);
+          }
+          print_stats(tempnet);
         }
-        print_stats(tempnet);
-        xxfree(tempstr);
+        free(tempstr);
         tempstr = NULL;
       }
     }
@@ -397,7 +406,7 @@ NOSPEQ     [\001-\177]{-}[\040\041\043\075]|[\300-\337].|[\340-\357]..|[\360-\36
 }
 
 <DEFI>[^ \t(]+/[\050] {
-   func_name = xxmalloc(sizeof(char)*(strlen(interfacetext)+2));
+   func_name = malloc(sizeof(char)*(strlen(interfacetext)+2));
    func_name = strcpy(func_name, interfacetext);
    strcat(func_name, "(");
    func_arg_no = 1;
@@ -417,16 +426,16 @@ NOSPEQ     [\001-\177]{-}[\040\041\043\075]|[\300-\337].|[\340-\357]..|[\360-\36
 }
 
 <FUNC_3>\)[ \t]*+             { funcdef[0] = '\0'; BEGIN(FUNC_4); }
-<FUNC_4>{NONRESERVED}+ { tempstr = rep_func_arg(interfacetext); strcat(funcdef, tempstr); xxfree(tempstr); tempstr = NULL;}
+<FUNC_4>{NONRESERVED}+ { tempstr = rep_func_arg(interfacetext); strcat(funcdef, tempstr); free(tempstr); tempstr = NULL;}
 <FUNC_4>{BRACED}       { strcat(funcdef, interfacetext); }
 <FUNC_4>%{ANY}         { strcat(funcdef, interfacetext); }
 <FUNC_4>{QUOTED}       { strcat(funcdef, interfacetext); }
-<FUNC_4>;              { strcat(funcdef, interfacetext); add_defined_function(g_defines_f, func_name, funcdef, (func_arg_no-1));clear_func_args(); xxfree(func_name); BEGIN(INITIAL); }
+<FUNC_4>;              { strcat(funcdef, interfacetext); add_defined_function(g_defines_f, func_name, funcdef, (func_arg_no-1));clear_func_args(); free(func_name); BEGIN(INITIAL); }
 <FUNC_4>.|\.#\.        { strcat(funcdef, interfacetext); }
 
 
 <DEFI>([\001-\010]|[\013-\037]|[\041-\047]|[\051-\072]|[\074-\177]|[\300-\337][\200-\277]|[\340-\357][\200-\277][\200-\277]|[\360-\367][\200-\277][\200-\277][\200-\277])+/[ \t]+ {
-  tempstr = xxstrdup(interfacetext);
+  tempstr = strdup(interfacetext);
   BEGIN(REGEX);
 }
 
@@ -437,12 +446,15 @@ NOSPEQ     [\001-\177]{-}[\040\041\043\075]|[\300-\337].|[\340-\357]..|[\360-\36
    if (iface_stack_check(1)) {
        tempnet = stack_pop();
        olddef = add_defined(g_defines, tempnet,remove_trailing(interfacetext,';'));
-       if (olddef) {
-         printf("redefined %s: ",interfacetext);
-       } else {
+       if (g_verbose)
+       {
+        if (olddef) {
+          printf("redefined %s: ",interfacetext);
+        } else {
           printf("defined %s: ",interfacetext);
+        }
+        print_stats(tempnet);
        }
-       print_stats(tempnet);
      }
      BEGIN(INITIAL);
 }
@@ -500,12 +512,12 @@ NOSPEQ     [\001-\177]{-}[\040\041\043\075]|[\300-\337].|[\340-\357]..|[\360-\36
   BEGIN(INITIAL);
 }
 <SET_VAR>[^ ]+ {
-  tempstr = xxstrdup(interfacetext);
+  tempstr = strdup(interfacetext);
   BEGIN(SET_VALUE);
 }
 <SET_VALUE>[^ \n]+ {
   iface_set_variable(tempstr,interfacetext);
-  xxfree(tempstr);
+  free(tempstr);
   tempstr = NULL;
   BEGIN(INITIAL);
 }
@@ -558,13 +570,13 @@ NOSPEQ     [\001-\177]{-}[\040\041\043\075]|[\300-\337].|[\340-\357]..|[\360-\36
   iface_load_defined(trim(interfacetext));
   BEGIN(INITIAL);
 }
-<SUBSTITUTE_SYMBOL>[^ \t]+ { tempstr = xxstrdup(interfacetext); BEGIN(SUBSTITUTE_SYMBOL_2);}
+<SUBSTITUTE_SYMBOL>[^ \t]+ { tempstr = strdup(interfacetext); BEGIN(SUBSTITUTE_SYMBOL_2);}
 <SUBSTITUTE_SYMBOL_2>for{SP}+ {BEGIN(SUBSTITUTE_SYMBOL_3);}
 <SUBSTITUTE_SYMBOL_3>{NONL}+ {
   iface_substitute_symbol(interfacetext, tempstr); 
   BEGIN(INITIAL);
 }
-<SUBSTITUTE_DEFINED>[^ \t]+ { tempstr = xxstrdup(interfacetext); BEGIN(SUBSTITUTE_DEFINED_2);}
+<SUBSTITUTE_DEFINED>[^ \t]+ { tempstr = strdup(interfacetext); BEGIN(SUBSTITUTE_DEFINED_2);}
 <SUBSTITUTE_DEFINED_2>for{SP}+ {BEGIN(SUBSTITUTE_DEFINED_3);}
 <SUBSTITUTE_DEFINED_3>{NONL}+ {
   iface_substitute_defined(interfacetext, tempstr); 
@@ -609,7 +621,7 @@ NOSPEQ     [\001-\177]{-}[\040\041\043\075]|[\300-\337].|[\340-\357]..|[\360-\36
 <RLEXC>{NONL}+ {
   if ((lexcfilein = file_to_mem(trim(interfacetext))) != NULL) {
      stack_add(fsm_lexc_parse_string(lexcfilein, 1));
-     xxfree(lexcfilein); 
+     free(lexcfilein); 
   } else {
     printf("Error opening file '%s'.\n", interfacetext);
   }
@@ -626,7 +638,7 @@ NOSPEQ     [\001-\177]{-}[\040\041\043\075]|[\300-\337].|[\340-\357]..|[\360-\36
     if ((cmatrixfilein = file_to_mem(trim(interfacetext))) != NULL) {
        printf("Reading confusion matrix from file '%s'\n",interfacetext);
        my_cmatrixparse(stack_find_top()->fsm, cmatrixfilein);
-       xxfree(cmatrixfilein);
+       free(cmatrixfilein);
     } else {
       perror("File error");
     }

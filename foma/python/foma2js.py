@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """Converts foma file to js array for use with Javascript runtime
 Outputs a js array of all the transitions, indexed in the
 input direction. This array can be passed to the js function
@@ -6,7 +6,6 @@ foma_apply_down() in foma_apply_down.js for stand-alone
 transducer application."""
 
 import sys
-import os
 import re
 import argparse
 import gzip
@@ -108,19 +107,20 @@ def main():
             if '\'' in symbol:
                 symbol = symbol.replace('\'', '\\\'')
             sigma[number] = symbol
-            if number > 2 and len(symbol) > longest_symbol_length:
-                longest_symbol_length = len(symbol)
+            if number > 2:
+                longest_symbol_length = max(longest_symbol_length,
+                                            len(symbol.encode("UTF-16LE")) // 2)
         elif mode is Mode.NONE:
             raise ValueError('Format error')
         
     print('var {} = new Object;'.format(args.name))
-    print('{}.t = Array;'.format(args.name))
-    print('{}.f = Array;'.format(args.name))
-    print('{}.s = Array;'.format(args.name))
+    print('{}.t = new Object;'.format(args.name))
+    print('{}.f = new Object;'.format(args.name))
+    print('{}.s = new Object;'.format(args.name))
     print()
 
     for key in trans:
-        state, inp = key.split('|')
+        state, inp = key.split('|', maxsplit=1)
         if inp == '@UN@':
             inp = '@ID@'
         print('{}.t[{} + \'|\' + \'{}\'] = [{}];'.format(args.name, state, inp, ','.join(trans[key])))
@@ -129,9 +129,8 @@ def main():
         if i in finals:
             print('{}.f[{}] = 1;'.format(args.name, i))
 
-    for i in range(3, len(sigma)):
-        if i in sigma:
-            print('{}.s[\'{}\'] = {};'.format(args.name, sigma[i], i))
+    for i in range(3, max(sigma.keys()) + 1):
+        print('{}.s[\'{}\'] = {};'.format(args.name, sigma[i], i))
 
     print('{}.maxlen = {} ;'.format(args.name, longest_symbol_length))
 

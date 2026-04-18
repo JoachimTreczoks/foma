@@ -1,5 +1,5 @@
 /*   Foma: a finite-state toolkit and library.                                 */
-/*   Copyright © 2008-2015 Mans Hulden                                         */
+/*   Copyright © 2008-2021 Mans Hulden                                         */
 
 /*   This file is part of foma.                                                */
 
@@ -20,7 +20,7 @@
 #include <stdlib.h>
 #include "foma.h"
 
-extern int quiet_mode;
+extern int g_verbose;
 
 struct stack_entry *main_stack;
 
@@ -33,7 +33,7 @@ int stack_size() {
 }
 
 int stack_init() {
-  main_stack = xxmalloc(sizeof(struct stack_entry));
+  main_stack = malloc(sizeof(struct stack_entry));
   main_stack->number = -1;
   main_stack->fsm = NULL;
   main_stack->next = NULL;
@@ -47,13 +47,13 @@ int stack_add(struct fsm *fsm) {
   stack_ptr_previous = NULL;
 
   fsm_count(fsm);
-  if (strcmp(fsm->name,"") == 0) 
+  if (strcmp(fsm->name,"") == 0)
       sprintf(fsm->name, "%X",rand());
   for (i=0, stack_ptr = main_stack; stack_ptr->number != -1; i++) {
     stack_ptr_previous = stack_ptr;
     stack_ptr = stack_ptr->next;
   }
-  stack_ptr->next = xxmalloc(sizeof(struct stack_entry));
+  stack_ptr->next = malloc(sizeof(struct stack_entry));
   stack_ptr->fsm = fsm;
   stack_ptr->ah = NULL;
   stack_ptr->amedh = NULL;
@@ -63,8 +63,10 @@ int stack_add(struct fsm *fsm) {
   (stack_ptr->next)->fsm = NULL;
   (stack_ptr->next)->next = NULL;
   (stack_ptr->next)->previous = stack_ptr;
-  if (!quiet_mode)
-      print_stats(fsm);
+  if (g_verbose)
+  {
+    print_stats(fsm);
+  }
   return(stack_ptr->number);
 }
 
@@ -116,7 +118,7 @@ struct fsm *stack_pop(void) {
       stack_ptr->amedh = NULL;
   }
   stack_ptr->fsm = NULL;
-  xxfree(stack_ptr);  
+  free(stack_ptr);
   return(fsm);
 }
 
@@ -171,7 +173,7 @@ struct stack_entry *stack_find_bottom () {
 
 struct stack_entry *stack_find_second () {
   struct stack_entry *stack_ptr;
-  /*  
+  /*
       if (main_stack->number == -1) {
       return NULL;
       }
@@ -190,9 +192,9 @@ int stack_clear(void) {
 
     main_stack = stack_ptr->next;
     fsm_destroy(stack_ptr->fsm);
-    xxfree(stack_ptr);
+    free(stack_ptr);
   }
-  xxfree(stack_ptr);
+  free(stack_ptr);
   return(stack_init());
 }
 

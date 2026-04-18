@@ -1,5 +1,5 @@
 /*   Foma: a finite-state toolkit and library.                                 */
-/*   Copyright © 2008-2015 Mans Hulden                                         */
+/*   Copyright © 2008-2021 Mans Hulden                                         */
 
 /*   This file is part of foma.                                                */
 
@@ -82,7 +82,7 @@ NONRESERVED [\001-\177]{-}[\011\012\014\015\040\041\042\045\073\074\076]|[\300-\
 
 INFOSTRING [\001-\177]{-}[\042\012\015]|[\300-\337][\200-\277]|[\340-\357][\200-\277][\200-\277]|[\360-\367][\200-\277][\200-\277][\200-\277]
 
-INSIDEREGEX [\001-\177]{-}[\073\173\175\042\045\076]|[\300-\337][\200-\277]|[\340-\357][\200-\277][\200-\277]|[\360-\367][\200-\277][\200-\277][\200-\277]|(@>)|(>@)|(->)|(=>)
+INSIDEREGEX [\001-\177]{-}[\073\173\175\042\045\076]|[\300-\337][\200-\277]|[\340-\357][\200-\277][\200-\277]|[\360-\367][\200-\277][\200-\277][\200-\277]|(@>)|(>@)|(->)|(=>)|^>
 
 INSIDEDEFREGEX [\001-\177]{-}[\073\173\175\042\045]|[\300-\337][\200-\277]|[\340-\357][\200-\277][\200-\277]|[\360-\367][\200-\277][\200-\277][\200-\277]
 
@@ -204,7 +204,7 @@ ANY    [\001-\177]|[\300-\337][\200-\277]|[\340-\357][\200-\277][\200-\277]|[\36
 }
 <DEF>{NONRESERVED}+{SPACE}+={SPACE}+ {
     lexc_trim(lexctext);
-    tempstr = xxstrdup(lexctext);
+    tempstr = strdup(lexctext);
     BEGIN(DEFREGEX);
 }
  /* \073 = ; */
@@ -212,7 +212,7 @@ ANY    [\001-\177]|[\300-\337][\200-\277]|[\340-\357][\200-\277][\200-\277]|[\36
     if (my_yyparse(lexctext, lexclineno, g_defines, NULL) == 0) {
       add_defined(g_defines, fsm_topsort(fsm_minimize(current_parse)),tempstr);
     }
-    xxfree(tempstr);
+    free(tempstr);
     BEGIN(DEF);
 }
 <DEFREGEX>({INSIDEDEFREGEX}|%{ANY})* {
@@ -240,6 +240,10 @@ ANY    [\001-\177]|[\300-\337][\200-\277]|[\340-\357][\200-\277][\200-\277]|[\36
   BEGIN(DEFREGEX);
   yymore();
 }
-<*>((!).*[\015]?(\n)) {  /* printf ("Comment: [%s]\n",lexctext); */  }
+<*>((!).*[\015]?(\n)) {
+  /* printf ("Comment: [%s]\n",lexctext); */
+  lexclineno++;
+  lexccolumn = 1;
+}
 
 <*>(.) { printf("\n***Syntax error on line %i column %i at '%s'\n",lexclineno,lexccolumn,lexctext); return 1;}
